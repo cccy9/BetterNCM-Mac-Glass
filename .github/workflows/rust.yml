@@ -1,0 +1,50 @@
+name: Build bundled installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust nightly and x86 target
+        shell: pwsh
+        run: |
+          rustup toolchain install nightly --profile minimal --component rust-src
+          rustup target add --toolchain nightly i686-pc-windows-msvc
+      - name: Build installer with embedded Mac Glass Theme
+        shell: pwsh
+        run: ./scripts/package.ps1
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BetterNCM-Mac-Glass-Installer
+          path: dist/*
+          if-no-files-found: error
+      - name: Attach installer to GitHub release
+        if: github.event_name == 'release'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          $existing = @(gh release view $env:RELEASE_TAG --json assets --jq '.assets[].name')
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot read release assets.' }
+          foreach ($file in @('BetterNCM-Mac-Glass-Installer.exe', 'BetterNCM-Mac-Glass-Installer.zip', 'SHA256SUMS.txt')) {
+            if ($existing -contains $file) { continue }
+            gh release upload $env:RELEASE_TAG "dist/$file"
+            if ($LASTEXITCODE -ne 0) { throw "Upload failed: $file" }
+          }

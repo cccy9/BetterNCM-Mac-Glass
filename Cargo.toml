@@ -1,0 +1,38 @@
+[package]
+name = "betterncm_installer"
+version = "1.8.88"
+edition = "2021"
+description = "BetterNCM installer with CCCY9 Mac Glass Theme"
+authors = ["CCCY9"]
+license = "GPL-3.0"
+repository = "https://github.com/cccy9/BetterNCM-Mac-Glass"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+build = "build.rs"
+
+[build-dependencies]
+winres = "0.1"
+
+[dependencies]
+druid = { git = "https://github.com/linebender/druid.git", features = [
+    "im",
+    "serde",
+    "raw-win-handle",
+] }
+scl-gui-widgets = { path = "./scl-gui-widgets" }
+serde_json = "1.0.79"
+winreg = "0.10.1"
+anyhow = "*"
+pelite = "0.10.0"
+semver = "1.0.16"
+dirs = "*"
+tinyget = { version = "1.0", features = ["https"] }
+rfd = { version = "0.17.2", default-features = false, features = ["common-controls-v6"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+opt-level = "z"
+debug = false
+strip = true

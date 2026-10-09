@@ -1,0 +1,20 @@
+{
+  "manifest_version": 1,
+  "name": "Mac Glass Theme",
+  "slug": "mac-glass-theme",
+  "version": "1.8.88",
+  "native_plugin": "MacGlassNative.dll",
+  "require_restart": true,
+  "betterncm_version": ">=1.0.0",
+  "author": "CCCY9",
+  "description": "CCCY9 基于 BetterNCM 扩展的 Windows macOS 风格半透明玻璃主题",
+  "type": "theme",
+  "ncm3-compatible": true,
+  "injects": {
+    "Main": [
+      {
+        "file": "main.js"
+      }
+    ]
+  }
+}
