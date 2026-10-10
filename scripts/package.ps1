@@ -1,4 +1,4 @@
-param([switch]$SkipBuild)
+param([switch]$SkipBuild, [string]$OutputDirectory = 'dist')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot
 Push-Location $projectRoot
@@ -15,7 +15,7 @@ try {
     if ((Get-Item -LiteralPath $binary).VersionInfo.ProductVersion -ne $version) {
         throw 'Installer version does not match Cargo.toml. Rebuild before packaging.'
     }
-    $output = Join-Path $projectRoot 'dist'
+    $output = Join-Path $projectRoot $OutputDirectory
     New-Item -ItemType Directory -Path $output -Force | Out-Null
     $installer = Join-Path $output 'BetterNCM-Mac-Glass-Installer.exe'
     Copy-Item -LiteralPath $binary -Destination $installer -Force

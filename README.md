@@ -13,7 +13,7 @@ Mac Glass Theme、Windows 整窗透明、主界面与播放页玻璃效果、歌
 ### 安装与测试
 
 运行 BetterNCM-Mac-Glass-Installer.exe 并接受 Windows 管理员权限提示。
-首次使用点击“安装”；已有 BetterNCM 时点击“重装/更新”。操作会关闭并重新启动网易云音乐。
+首次使用点击“安装”；已有 BetterNCM 只更新插件时点击“仅更新 Mac Glass（离线）”，不需要等待版本检查。要同时重装核心时使用“重装/更新”。操作会关闭并重新启动网易云音乐。
 欢迎页点击“开始使用 BetterNCM Mac Glass · 打开设置”直接进入 Mac Glass 设置。
 设置自动保存，重新启动后恢复。
 
@@ -66,6 +66,7 @@ loading for both x86 and x64 clients.
 Project repository: [github.com/cccy9/BetterNCM-Mac-Glass](https://github.com/cccy9/BetterNCM-Mac-Glass)
 
 Settings are saved automatically and restored on restart.
+With BetterNCM already installed, use “仅更新 Mac Glass（离线）” (Update Mac Glass only, offline) to update the plugin without waiting for the online version check. The existing core and saved settings are preserved.
 The welcome-page Start button opens the Mac Glass settings directly.
 
 ### Included installer features

@@ -3,6 +3,7 @@
     windows_subsystem = "windows"
 )]
 mod ncm_utils;
+mod theme_update;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
@@ -43,6 +44,7 @@ pub enum AdaptedVersionResult {
 
 #[derive(Debug, Clone, Data, Lens)]
 struct AppData {
+    busy: bool,
     progress: f64,
     prerelease: bool,
     #[data(eq)]
@@ -102,18 +104,71 @@ fn betterncm_profile() -> PathBuf {
 }
 
 fn install_mac_glass_theme() -> anyhow::Result<()> {
-    let theme_dir = betterncm_profile().join(r"plugins_dev\mac-glass-theme");
-    fs::create_dir_all(&theme_dir)?;
-    for (name, contents) in [
+    install_mac_glass_theme_at(&betterncm_profile())
+}
+
+fn install_mac_glass_theme_at(profile: &Path) -> anyhow::Result<()> {
+    theme_update::write_payload(&profile.join(r"plugins_dev\mac-glass-theme"), &[
         ("main.js", MAC_GLASS_MAIN_JS),
         ("manifest.json", MAC_GLASS_MANIFEST),
         ("MacGlassNative.dll", MAC_GLASS_NATIVE_DLL),
         ("MacGlassNative.dll.x64.dll", MAC_GLASS_NATIVE_X64_DLL),
         ("README.md", MAC_GLASS_README),
-    ] {
-        fs::write(theme_dir.join(name), contents)?;
+    ])
+}
+
+fn can_update_theme(data: &AppData) -> bool {
+    !data.busy && !data.old_version && data.new_version && data.ncm.is_some()
+}
+
+#[cfg(test)]
+mod offline_update_tests {
+    use super::*;
+
+    #[test]
+    fn offline_button_does_not_require_version_or_download_url() {
+        let mut data = AppData {
+            busy: false, progress: 0., prerelease: false,
+            latest_version: None, latest_download_url: None,
+            old_version: false, new_version: true,
+            installer_version: Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+            tips_string: String::new(),
+            ncm: Some(Ncm { path: PathBuf::from("test-only"),
+                version: Version::new(3, 1, 41), ncm_type: ncm_utils::NcmType::X64 }),
+        };
+        assert!(can_update_theme(&data));
+        data.latest_version = Some(AdaptedVersionResult::NoAdaptedVersion);
+        assert!(can_update_theme(&data));
+        data.busy = true;
+        assert!(!can_update_theme(&data));
+        data.busy = false;
+        data.new_version = false;
+        assert!(!can_update_theme(&data));
+        data.new_version = true;
+        data.old_version = true;
+        assert!(!can_update_theme(&data));
+        data.old_version = false;
+        data.ncm = None;
+        assert!(!can_update_theme(&data));
     }
-    Ok(())
+
+    #[test]
+    fn embedded_payload_preserves_saved_parameters() {
+        let root = std::env::temp_dir().join(format!("mac-glass-payload-test-{}-{}",
+            std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let theme = root.join(r"plugins_dev\mac-glass-theme");
+        fs::create_dir_all(&theme).unwrap();
+        fs::write(theme.join("settings.json"), b"{\"windowTransparency\":33}").unwrap();
+        fs::write(theme.join("native-window.ini"), b"[window]\r\nmainAlpha=171").unwrap();
+        install_mac_glass_theme_at(&root).unwrap();
+        assert_eq!(fs::read(theme.join("settings.json")).unwrap(), b"{\"windowTransparency\":33}");
+        assert_eq!(fs::read(theme.join("native-window.ini")).unwrap(), b"[window]\r\nmainAlpha=171");
+        assert_eq!(fs::read(theme.join("MacGlassNative.dll")).unwrap(), MAC_GLASS_NATIVE_DLL);
+        assert_eq!(fs::read(theme.join("MacGlassNative.dll.x64.dll")).unwrap(), MAC_GLASS_NATIVE_X64_DLL);
+        let manifest: serde_json::Value = serde_json::from_slice(&fs::read(theme.join("manifest.json")).unwrap()).unwrap();
+        assert_eq!(manifest["version"], env!("CARGO_PKG_VERSION"));
+        fs::remove_dir_all(root).unwrap();
+    }
 }
 
 fn uninstall_mac_glass_theme() -> anyhow::Result<()> {
@@ -193,14 +248,27 @@ fn start_job(sink: ExtEventSink, job: impl FnOnce() -> anyhow::Result<()> + Send
     });
 }
 
+fn start_mutation(sink: ExtEventSink, job: impl FnOnce() -> anyhow::Result<()> + Send + 'static) {
+    std::thread::spawn(move || {
+        let result = job();
+        sink.add_idle_callback(move |data: &mut AppData| {
+            data.busy = false;
+            if let Err(error) = result {
+                data.tips_string = format!("操作失败：{error:#}");
+            }
+        });
+    });
+}
+
 fn main() -> Result<()> {
     let main_window = WindowDesc::new(ui_builder())
-        .window_size((520., 350.))
+        .window_size((520., 410.))
         .resizable(false)
         .show_titlebar(false)
         .title("BetterNCM + Mac Glass Installer");
 
     let mut data = AppData {
+        busy: false,
         prerelease: false,
         progress: 0.,
         latest_version: None,
@@ -366,7 +434,8 @@ fn ui_builder() -> impl Widget<AppData> {
         .on_click(|ctx, data, _env| {
             let event_sink = ctx.get_external_handle();
             let url: String = data.latest_download_url.as_ref().unwrap().clone();
-            start_job(event_sink.clone(), move || {
+            data.busy = true;
+            start_mutation(event_sink.clone(), move || {
                 fn add_exclude_from_wd() -> anyhow::Result<()> {
                     // Command::new("powershell.exe")
                     //     .arg("-Command")
@@ -433,7 +502,8 @@ fn ui_builder() -> impl Widget<AppData> {
         .on_click(|ctx, data, _env| {
             let event_sink = ctx.get_external_handle();
             let url: String = data.latest_download_url.as_ref().unwrap().clone();
-            start_job(event_sink.clone(), move || {
+            data.busy = true;
+            start_mutation(event_sink.clone(), move || {
                 let _ = std::fs::remove_file("betterncm.dll");
 
                 download_file(&url, "betterncm.dll", event_sink.to_owned())?;
@@ -472,11 +542,49 @@ fn ui_builder() -> impl Widget<AppData> {
             });
         });
 
+    let button_theme_update = Button::new("仅更新 Mac Glass（离线）")
+        .disabled_if(|data: &AppData, _env: &_| !can_update_theme(data))
+        .on_click(|ctx, data, _env| {
+            let Some(ncm) = data.ncm.clone() else { return; };
+            let confirmed = rfd::MessageDialog::new()
+                .set_title("仅更新 Mac Glass")
+                .set_description("将关闭网易云音乐并中断播放，更新后自动重新打开。\n仅更新内置插件，保留 BetterNCM 核心和已保存参数，无需联网。\n是否继续？")
+                .set_buttons(rfd::MessageButtons::OkCancel)
+                .show();
+            if confirmed != rfd::MessageDialogResult::Ok { return; }
+            let profile = betterncm_profile();
+            let event_sink = ctx.get_external_handle();
+            data.busy = true;
+            data.tips_string = "正在离线更新 Mac Glass…".into();
+            start_mutation(event_sink.clone(), move || {
+                anyhow::ensure!(ncm.path.join("cloudmusic.exe").is_file()
+                    && ncm.path.join("msimg32.dll").is_file()
+                    && !ncm.path.join("cloudmusicn.exe").exists(),
+                    "未找到可用的 BetterNCM 安装，请先安装 BetterNCM");
+                // Exit code is nonzero when NetEase is already closed. The
+                // exclusive DLL preflight below still prevents a live update.
+                Command::new("taskkill.exe")
+                    .args(["/f", "/im", "cloudmusic.exe"])
+                    .creation_flags(0x08000000)
+                    .output().context("无法关闭网易云，请手动退出后重试")?;
+                std::thread::sleep(Duration::from_millis(500));
+                install_mac_glass_theme_at(&profile)?;
+                Command::new(ncm.path.join("cloudmusic.exe"))
+                    .current_dir(&ncm.path).spawn()
+                    .context("插件已更新，但网易云启动失败，请手动打开")?;
+                event_sink.add_idle_callback(move |data: &mut AppData| {
+                    data.tips_string = "Mac Glass 已更新，原有参数已保留。".into();
+                });
+                Ok(())
+            });
+        });
+
     let button_uninstall = Button::new("卸载")
         .disabled_if(|data: &AppData, _env: &_| data.old_version || !data.new_version)
-        .on_click(|ctx, _data, _env| {
+        .on_click(|ctx, data, _env| {
             let event_sink = ctx.get_external_handle();
-            start_job(event_sink.clone(), move || {
+            data.busy = true;
+            start_mutation(event_sink.clone(), move || {
                 event_sink.add_idle_callback(move |data: &mut AppData| {
                     data.tips_string = "正在卸载 BetterNCM…".into();
                 });
@@ -599,11 +707,14 @@ fn ui_builder() -> impl Widget<AppData> {
 
             if let Some(files) = files {
                 data.ncm = Ncm::get_ncm_by_path(files[0].parent().unwrap().to_path_buf()).ok();
-                let _ = get_adapted_betterncm_version(
-                    data.ncm.clone(),
-                    ctx.get_external_handle(),
-                    if data.prerelease { "test" } else { "versions" }.to_string(),
-                );
+                data.new_version = data.ncm.as_ref().is_some_and(|ncm| ncm.path.join("msimg32.dll").is_file());
+                data.old_version = data.ncm.as_ref().is_some_and(|ncm| ncm.path.join("cloudmusicn.exe").exists());
+                data.latest_version = None;
+                data.latest_download_url = None;
+                let ncm = data.ncm.clone();
+                let sink = ctx.get_external_handle();
+                let channel = if data.prerelease { "test" } else { "versions" }.to_string();
+                start_job(sink.clone(), move || get_adapted_betterncm_version(ncm, sink, channel));
             }
         });
 
@@ -622,7 +733,10 @@ fn ui_builder() -> impl Widget<AppData> {
                 data.tips_string.clone()
             }))
             .with_flex_spacer(1.)
-            .with_child(checker_prerelease)
+            .with_child(checker_prerelease.disabled_if(|data: &AppData, _env: &_| data.busy))
+            .with_spacer(5.)
+            .with_child(button_theme_update.expand_width())
+            .with_child(Label::new("已有 BetterNCM 可离线更新；保留核心及参数").with_text_color(Color::grey(0.7)))
             .with_spacer(5.)
             .with_child(
                 Flex::row()
@@ -632,7 +746,8 @@ fn ui_builder() -> impl Widget<AppData> {
                     .with_spacer(5.)
                     .with_flex_child(button_uninstall.expand_width(), 1.)
                     .with_spacer(5.)
-                    .with_flex_child(button_uninstall_old.expand_width(), 1.),
+                    .with_flex_child(button_uninstall_old.expand_width(), 1.)
+                    .disabled_if(|data: &AppData, _env: &_| data.busy),
             )
             .with_spacer(5.)
             .with_child(
@@ -641,7 +756,8 @@ fn ui_builder() -> impl Widget<AppData> {
                     .with_spacer(5.)
                     .with_flex_child(button_reset_path.expand_width(), 1.)
                     .with_spacer(5.)
-                    .with_flex_child(button_set_ncm_path.expand_width(), 1.),
+                    .with_flex_child(button_set_ncm_path.expand_width(), 1.)
+                    .disabled_if(|data: &AppData, _env: &_| data.busy),
             )
             .with_spacer(5.)
             .with_child(progress_bar)

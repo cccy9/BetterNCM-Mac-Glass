@@ -1,6 +1,6 @@
 [package]
 name = "betterncm_installer"
-version = "1.8.89"
+version = "1.8.90"
 edition = "2021"
 description = "BetterNCM installer with CCCY9 Mac Glass Theme"
 authors = ["CCCY9"]

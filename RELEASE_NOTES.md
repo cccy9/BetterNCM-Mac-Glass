@@ -1,25 +1,25 @@
-# BetterNCM Mac Glass 1.8.89
+# BetterNCM Mac Glass 1.8.90
 
 ## 中文
 
 基于 BetterNCM 的 Windows 网易云音乐玻璃主题整合安装器，感谢 BetterNCM 原作者及贡献者。
 
-- 修复重启后参数丢失：透明度、磨砂、文字和歌词颜色等设置自动保存到本地文件，下次启动恢复。
-- 自动迁移仍可读取的旧配置，设置页显示保存状态；保存失败不会覆盖上次成功保存的文件。
-- 插件、设置页和安装器版本随构建统一更新。
+- 新增“仅更新 Mac Glass（离线）”：已有 BetterNCM 时无需等待联网版本检查，即可更新内置插件。
+- 保留现有 BetterNCM 核心和已保存参数；更新前提示关闭并重启网易云。
+- 增加文件占用检查和操作防重复保护，修复确认弹窗的 Windows 组件兼容问题。
 
-下载 **BetterNCM-Mac-Glass-Installer.exe**，接受管理员权限提示后，首次使用选择“安装”，已有 BetterNCM 则选择“重装/更新”。安装会关闭并重新启动网易云。ZIP 包另附许可证、说明和校验文件。
+下载 **BetterNCM-Mac-Glass-Installer.exe**，首次使用选择“安装”；已有 BetterNCM 更新插件请选择“仅更新 Mac Glass（离线）”。“重装/更新”用于同时重装核心。操作会关闭并重新启动网易云，请先停止播放。
 
-安装需要联网获取匹配的 BetterNCM 核心及所需运行库。Windows 整窗透明会同时淡化文字和封面；网页磨砂不能调节桌面背景模糊半径。
+首次安装或重装核心仍需联网。Windows 整窗透明会同时淡化文字和封面；网页磨砂不能调节桌面背景模糊半径。
 
 ## English
 
 A glass-theme installer for NetEase Cloud Music on Windows, built on BetterNCM. Thanks to the original BetterNCM authors and contributors.
 
-- Fix settings lost after restart: transparency, web blur, text and lyric colors are saved to a local file and restored on startup.
-- Migrate available legacy settings and show save status. Failed writes preserve the last saved file.
-- Generate plugin, settings-page and installer versions from one build version.
+- Add “Update Mac Glass only (offline)” for existing BetterNCM installations, independent of the online version check.
+- Preserve the existing BetterNCM core and saved settings, with confirmation before restarting NetEase Cloud Music.
+- Check for locked files, prevent overlapping operations, and fix Windows component compatibility for the confirmation dialog.
 
-Download **BetterNCM-Mac-Glass-Installer.exe**, accept the administrator prompt, then choose Install or Reinstall/Update if BetterNCM is already installed. Installation closes and restarts NetEase Cloud Music. The ZIP also includes the license, README and checksum file.
+Download **BetterNCM-Mac-Glass-Installer.exe**. Choose Install for a new installation, or “仅更新 Mac Glass（离线）” to update only the plugin. Reinstall/Update also reinstalls the core. Stop playback first: the operation closes and restarts NetEase Cloud Music.
 
-Internet access is required for the matching BetterNCM core and required runtimes. Whole-window alpha also fades text and cover art; web blur does not control the desktop background blur radius.
+Installing or reinstalling the core still requires internet access. Whole-window alpha also fades text and cover art; web blur does not control the desktop background blur radius.
