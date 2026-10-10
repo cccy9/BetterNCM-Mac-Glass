@@ -27,6 +27,9 @@
     playbackTransparency: 20
   };
 
+  let storageStatus = "正在读取设置…";
+  let settingsReady = false;
+  let migrateSettings = false;
   let settings = readSettings();
   let lastImage = "";
   let scheduled = false;
@@ -93,7 +96,7 @@
   function saveRuntimeDiagnostics(surface) {
     // Local, content-free status: no song names, lyrics, account data or URLs.
     if (typeof betterncm === "undefined" || !betterncm.fs || typeof plugin === "undefined") return;
-    const report = { version: "1.8.88", playback: Boolean(surface),
+    const report = { version: PROJECT_VERSION, playback: Boolean(surface),
       surfaceClass: surface ? String(surface.className) : null,
       background: surface ? getComputedStyle(surface).backgroundColor : null,
       position: surface ? getComputedStyle(surface).position : null,
@@ -108,7 +111,7 @@
   }
 
   function syncNative() {
-    if (disposed) return;
+    if (disposed || !settingsReady) return;
     applyProjectBranding();
     const surface = markPlaybackSurface();
     markLyricText(surface);
@@ -140,15 +143,59 @@
   }
 
   function readSettings() {
+    let legacy = null;
+    try { legacy = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "null"); } catch (_) {}
     try {
-      return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") };
-    } catch (_) {
-      return { ...DEFAULTS };
+      const result = JSON.parse(betterncm_native.native_plugin.call("mac_glass.settings.load", []));
+      if (!result.ok) throw new Error(`读取失败 (${result.error})`);
+      settingsReady = true;
+      if (result.settings !== null) {
+        const loaded = sanitizeSettings(result.settings);
+        storageStatus = "已读取保存的设置，调整后自动保存。";
+        return loaded;
+      }
+      migrateSettings = true;
+      const fallback = legacy || { nativeWindow: result.legacyEnabled,
+        windowTransparency: Math.round((1 - result.legacyAlpha / 255) * 100) };
+      return sanitizeSettings(fallback);
+    } catch (error) {
+      settingsReady = false;
+      storageStatus = `设置读取失败：${error.message}。请确认安装新版后已重启网易云。`;
+      try { return sanitizeSettings(legacy || {}); } catch (_) { return { ...DEFAULTS }; }
     }
   }
 
+  function sanitizeSettings(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("配置格式无效");
+    const clean = { ...DEFAULTS };
+    const ranges = { windowTransparency: [0,55], playbackTransparency: [0,55],
+      opacity: [.15,.85], strongOpacity: [.2,.95], blur: [0,48], playerOpacity: [.15,.9],
+      playerBlur: [0,60], pageOpacity: [.15,.9], pageBlur: [0,60], overlay: [0,.6] };
+    for (const key of Object.keys(DEFAULTS)) {
+      const item = value[key];
+      if (typeof item !== typeof DEFAULTS[key]) continue;
+      if (typeof item === "number") {
+        if (Number.isFinite(item)) clean[key] = Math.max(ranges[key][0], Math.min(ranges[key][1], item));
+      } else if (typeof item === "boolean" || /^#[0-9a-f]{6}$/i.test(item)) clean[key] = item;
+    }
+    return clean;
+  }
+
   function saveSettings() {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    const serialized = JSON.stringify(settings);
+    try { localStorage.setItem(SETTINGS_KEY, serialized); } catch (_) {}
+    try {
+      const result = JSON.parse(betterncm_native.native_plugin.call("mac_glass.settings.save", [serialized]));
+      if (!result.saved) throw new Error(`写入失败 (${result.error})`);
+      settingsReady = true;
+      storageStatus = "已保存，下次启动会自动恢复。";
+    } catch (error) {
+      storageStatus = `保存失败：${error.message}。当前修改尚未保存到磁盘。`;
+    }
+    for (const page of configPages) {
+      const output = page.querySelector("[data-save-status]");
+      if (output) output.textContent = storageStatus;
+    }
   }
 
   // Keep the BetterNCM welcome/about links aligned with this distribution.
@@ -156,7 +203,7 @@
   // theme updates its visible copy without replacing the core DLL.
   const PROJECT_URL = "https://github.com/cccy9/BetterNCM-Mac-Glass";
   const PROJECT_NAME = "BetterNCM Mac Glass";
-  const PROJECT_VERSION = "1.8.88";
+  const PROJECT_VERSION = "__MAC_GLASS_VERSION__";
   let pendingSettingsNavigation = null;
   let settingsNavigationTimer = null;
 
@@ -596,7 +643,8 @@ body [data-mac-glass-config], body [data-mac-glass-config] :where(span,p,h2,labe
     page.style.cssText = "padding:20px;max-width:640px;color:#202632;background:rgba(245,247,251,.95);border-radius:12px;font-size:14px;line-height:1.6";
     configPages.add(page);
     page.innerHTML = `
-      <h2 style="margin:0 0 6px">BetterNCM Mac Glass 1.8.88</h2>
+      <h2 style="margin:0 0 6px">BetterNCM Mac Glass ${PROJECT_VERSION}</h2>
+      <p data-save-status role="status"></p>
       <p style="margin:0 0 12px;opacity:.85">本插件基于 BetterNCM 插件框架扩展，项目地址：<a href="https://github.com/cccy9/BetterNCM-Mac-Glass" target="_blank">github.com/cccy9/BetterNCM-Mac-Glass</a></p>
       <p style="margin:0 0 12px;opacity:.85">Windows 兼容整窗透明：直接调整原生窗口 Alpha，主界面和播放页都能透到桌面。首次加载 DLL 后需重启一次，之后启动自动生效，无需手动运行命令。文字和封面也会轻微淡化；这不是 macOS 的独立背景透明合成。</p>
       <p data-native-status style="padding:8px;border:1px solid #aab4c4;border-radius:8px">${nativeStatusText}</p>
@@ -630,6 +678,7 @@ body [data-mac-glass-config], body [data-mac-glass-config] :where(span,p,h2,labe
       <button data-reset type="button" style="margin-top:12px;padding:6px 14px">恢复默认</button>
     `;
 
+    page.querySelector("[data-save-status]").textContent = storageStatus;
     const fields = [
       ["windowTransparency", "主窗体透明度（原生）", 0, 55, 1, "%"],
       ["playbackTransparency", "播放页整窗透明度（原生）", 0, 55, 1, "%"],
@@ -751,6 +800,7 @@ body [data-mac-glass-config], body [data-mac-glass-config] :where(span,p,h2,labe
     return page;
   }
 
+  if (migrateSettings) saveSettings();
   installStyle();
   syncAlbumBackground();
   const observer = new MutationObserver(scheduleSync);

@@ -2,7 +2,7 @@
   "manifest_version": 1,
   "name": "Mac Glass Theme",
   "slug": "mac-glass-theme",
-  "version": "1.8.88",
+  "version": "0.0.0",
   "native_plugin": "MacGlassNative.dll",
   "require_restart": true,
   "betterncm_version": ">=1.0.0",

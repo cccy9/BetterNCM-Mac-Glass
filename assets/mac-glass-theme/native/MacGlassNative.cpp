@@ -7,6 +7,7 @@
 #include <map>
 #include <string>
 #include <atomic>
+#include <cstring>
 
 // BetterNCM 1.3.4's public native-plugin ABI. No CEF detours or injection.
 enum NativeAPIType { Int, Boolean, Double, String, V8Value };
@@ -18,6 +19,10 @@ struct PluginAPI {
 };
 static HMODULE module;
 static std::wstring configPath;
+static std::wstring settingsPath;
+static NativeAPIType settingsTypes[] = {String};
+static SRWLOCK settingsLock = SRWLOCK_INIT;
+static thread_local std::string settingsResponse;
 static std::atomic<bool> started{false};
 static const wchar_t* marker = L"MacGlassNativeOwned";
 static NativeAPIType configureTypes[] = {Int, Int, Int};
@@ -141,14 +146,66 @@ static char* status(void**) {
     return response;
 }
 
+static char* loadSettings(void**) {
+    HANDLE file = CreateFileW(settingsPath.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE,
+                              nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE) {
+        const DWORD error = GetLastError();
+        if (error == ERROR_FILE_NOT_FOUND) {
+            const int alpha = std::clamp(static_cast<int>(GetPrivateProfileIntW(L"window", L"mainAlpha", 204, configPath.c_str())), 100, 255);
+            const bool enabled = GetPrivateProfileIntW(L"window", L"enabled", 1, configPath.c_str()) != 0;
+            sprintf_s(response, "{\"ok\":true,\"settings\":null,\"legacyAlpha\":%d,\"legacyEnabled\":%s}", alpha, enabled ? "true" : "false");
+        } else sprintf_s(response, "{\"ok\":false,\"error\":%lu}", error);
+        return response;
+    }
+    LARGE_INTEGER size{};
+    if (!GetFileSizeEx(file, &size) || size.QuadPart < 2 || size.QuadPart > 16384) {
+        CloseHandle(file);
+        return const_cast<char*>("{\"ok\":false,\"error\":13}");
+    }
+    std::string contents(static_cast<size_t>(size.QuadPart), '\0');
+    DWORD count = 0;
+    const bool read = ReadFile(file, contents.data(), static_cast<DWORD>(contents.size()), &count, nullptr) && count == contents.size();
+    CloseHandle(file);
+    if (!read) return const_cast<char*>("{\"ok\":false,\"error\":30}");
+    settingsResponse = "{\"ok\":true,\"settings\":" + contents + "}";
+    return settingsResponse.data();
+}
+
+static char* saveSettings(void** args) {
+    const char* json = static_cast<const char*>(args[0]);
+    const size_t length = strnlen_s(json, 16385);
+    if (length < 2 || length > 16384 || json[0] != '{' || json[length - 1] != '}')
+        return const_cast<char*>("{\"saved\":false,\"error\":13}");
+    AcquireSRWLockExclusive(&settingsLock);
+    const auto temporary = settingsPath + L"." + std::to_wstring(GetCurrentProcessId()) + L".tmp";
+    HANDLE file = CreateFileW(temporary.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    DWORD error = ERROR_SUCCESS, written = 0;
+    if (file == INVALID_HANDLE_VALUE) error = GetLastError();
+    else {
+        if (!WriteFile(file, json, static_cast<DWORD>(length), &written, nullptr) || written != length || !FlushFileBuffers(file))
+            error = ERROR_WRITE_FAULT;
+        CloseHandle(file);
+        if (!error && !MoveFileExW(temporary.c_str(), settingsPath.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+            error = GetLastError();
+    }
+    if (error) DeleteFileW(temporary.c_str());
+    ReleaseSRWLockExclusive(&settingsLock);
+    sprintf_s(response, "{\"saved\":%s,\"error\":%lu}", error ? "false" : "true", error);
+    return response;
+}
+
 extern "C" __declspec(dllexport) int BetterNCMPluginMain(PluginAPI* api) {
     wchar_t path[MAX_PATH] = {};
     GetModuleFileNameW(module, path, MAX_PATH);
     configPath = std::wstring(path);
     configPath = configPath.substr(0, configPath.find_last_of(L"\\/")) + L"\\native-window.ini";
+    settingsPath = configPath.substr(0, configPath.find_last_of(L"\\/")) + L"\\settings.json";
     if (api->processType & 0x10) {
         api->addNativeAPI(configureTypes, 3, "mac_glass.configure", configure);
         api->addNativeAPI(nullptr, 0, "mac_glass.status", status);
+        api->addNativeAPI(nullptr, 0, "mac_glass.settings.load", loadSettings);
+        api->addNativeAPI(settingsTypes, 1, "mac_glass.settings.save", saveSettings);
     }
     if ((api->processType & 1) && !started.exchange(true)) {
         if (auto thread = CreateThread(nullptr, 0, worker, nullptr, 0, nullptr)) CloseHandle(thread);

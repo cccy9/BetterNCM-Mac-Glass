@@ -15,7 +15,7 @@ Mac Glass Theme、Windows 整窗透明、主界面与播放页玻璃效果、歌
 运行 BetterNCM-Mac-Glass-Installer.exe 并接受 Windows 管理员权限提示。
 首次使用点击“安装”；已有 BetterNCM 时点击“重装/更新”。操作会关闭并重新启动网易云音乐。
 欢迎页点击“开始使用 BetterNCM Mac Glass · 打开设置”直接进入 Mac Glass 设置。
-当前整合版版本为 1.8.88；该版本号独立于底层 BetterNCM 核心版本。
+设置自动保存，重新启动后恢复。
 
 正式附件发布位置为本仓库的 [Releases](https://github.com/cccy9/BetterNCM-Mac-Glass/releases)。
 只有发布完成后该页面才会出现下载附件；本地构建不会自动上传。
@@ -65,7 +65,7 @@ loading for both x86 and x64 clients.
 
 Project repository: [github.com/cccy9/BetterNCM-Mac-Glass](https://github.com/cccy9/BetterNCM-Mac-Glass)
 
-Distribution version: 1.8.88. The underlying BetterNCM core keeps its own version.
+Settings are saved automatically and restored on restart.
 The welcome-page Start button opens the Mac Glass settings directly.
 
 ### Included installer features
@@ -91,7 +91,7 @@ approximates the macOS glass look but is not the same as macOS native background
 ```powershell
 rustup toolchain install nightly --profile minimal --component rust-src
 rustup target add --toolchain nightly i686-pc-windows-msvc
-cargo +nightly build --release --target i686-pc-windows-msvc
+./scripts/package.ps1
 ```
 
 Pushing to `main` starts the GitHub Actions build. A published Release receives the installer EXE

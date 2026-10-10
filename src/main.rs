@@ -71,8 +71,8 @@ fn config_path() -> String {
 }
 
 // Embed the theme so the release installer is a single self-contained file.
-const MAC_GLASS_MAIN_JS: &[u8] = include_bytes!("../assets/mac-glass-theme/main.js");
-const MAC_GLASS_MANIFEST: &[u8] = include_bytes!("../assets/mac-glass-theme/manifest.json");
+const MAC_GLASS_MAIN_JS: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/main.js"));
+const MAC_GLASS_MANIFEST: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/manifest.json"));
 const MAC_GLASS_NATIVE_DLL: &[u8] = include_bytes!("../assets/mac-glass-theme/MacGlassNative.dll");
 const MAC_GLASS_NATIVE_X64_DLL: &[u8] = include_bytes!("../assets/mac-glass-theme/MacGlassNative.dll.x64.dll");
 const MAC_GLASS_README: &[u8] = include_bytes!("../assets/mac-glass-theme/README.md");

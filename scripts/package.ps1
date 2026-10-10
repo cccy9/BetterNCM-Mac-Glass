@@ -4,11 +4,17 @@ $projectRoot = Split-Path $PSScriptRoot
 Push-Location $projectRoot
 try {
     if (-not $SkipBuild) {
+        & "$projectRoot/assets/mac-glass-theme/native/build.ps1" -Architecture x86
+        & "$projectRoot/assets/mac-glass-theme/native/build.ps1" -Architecture x64
         & cargo +nightly build --locked --release --target i686-pc-windows-msvc
         if ($LASTEXITCODE -ne 0) { throw 'Installer build failed.' }
     }
     $binary = Join-Path $projectRoot 'target\i686-pc-windows-msvc\release\betterncm_installer.exe'
     if (-not (Test-Path -LiteralPath $binary)) { throw 'Built installer not found.' }
+    $version = [regex]::Match((Get-Content -LiteralPath 'Cargo.toml' -Raw), '(?m)^version\s*=\s*"([^"]+)"').Groups[1].Value
+    if ((Get-Item -LiteralPath $binary).VersionInfo.ProductVersion -ne $version) {
+        throw 'Installer version does not match Cargo.toml. Rebuild before packaging.'
+    }
     $output = Join-Path $projectRoot 'dist'
     New-Item -ItemType Directory -Path $output -Force | Out-Null
     $installer = Join-Path $output 'BetterNCM-Mac-Glass-Installer.exe'

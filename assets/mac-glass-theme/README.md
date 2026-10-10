@@ -1,6 +1,6 @@
-# BetterNCM Mac Glass 1.8.88
+# BetterNCM Mac Glass
 
-1.8.88 统一管理器名称、整合版版本、欢迎说明和按钮文案。点击欢迎页“开始使用”后自动进入 Mac Glass 设置。
+点击欢迎页“开始使用”后自动进入 Mac Glass 设置，参数调整后自动保存。
 
 项目地址：[github.com/cccy9/BetterNCM-Mac-Glass](https://github.com/cccy9/BetterNCM-Mac-Glass)
 
@@ -26,7 +26,7 @@ Windows 网易云 / BetterNCM 1.3.4 的玻璃样式与整窗透明兼容插件�
 - 自定义文字纯色/渐变：独立选项，设置面板始终保持深色文字。
 
 状态栏读取实际窗口 Layered/Alpha 属性，不把 DWM Backdrop=3 当成视觉验收。
-参数由页面保存到 localStorage，并经原生接口同步到插件目录的 native-window.ini。
+全部参数由原生接口同步保存到插件目录 settings.json，启动时优先读取；网页缓存仅用于旧版迁移。保存结果显示在设置页。
 模块每 500 ms 发现本进程新窗口。页面每秒检查播放页状态并发送对应 Alpha。
 
 ## 限制
@@ -38,7 +38,7 @@ Windows 网易云 / BetterNCM 1.3.4 的玻璃样式与整窗透明兼容插件�
 
 ## 编译和回退
 
-`native/build.ps1` 使用本机 Visual Studio C++ 工具和 Windows SDK 编译 x64 DLL。
+版本号统一取自安装器 Cargo.toml，编译时自动写入插件清单和页面；不要直接安装含版本占位符的源文件。使用 scripts/package.ps1 同时编译双架构 DLL 并打包。
 `../mac-glass-window/Deploy-NativeTheme.ps1` 备份旧插件、停止并禁用旧 Watch 任务、部署和重启应用。
 回退时关闭网易云，将工作区 work/native-deploy-backup-* 中的插件文件夹恢复到 plugins_dev。
 该目录中的 watch-task.xml 是旧任务备份；仅在需要旧实验脚本时恢复，避免多个实现竞争窗口属性。
